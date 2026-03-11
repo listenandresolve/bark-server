@@ -43,40 +43,41 @@ jobs:
           import re
           
           file_path = "apns/apns_certs.go"
+          new_key = os.environ["P8_KEY"].strip()
           
-          # Lecture du fichier original
           with open(file_path, "r") as f:
               content = f.read()
           
-          # Récupération de la clé depuis la variable d'environnement
-          # La clé est attendue avec ses headers PEM inclus
-          new_key = os.environ["P8_KEY"]
+          # Le fichier utilise "const" et non "var"
+          # Pattern : capture const OU var, pour être robuste
+          pattern = r'(const|var)\s+apnsPrivateKey\s*=\s*`[^`]*`'
           
-          # Nettoyage : suppression des éventuels espaces/retours en trop en début et fin
-          new_key = new_key.strip()
+          match = re.search(pattern, content, flags=re.DOTALL)
+          if not match:
+              raise ValueError(f"Pattern introuvable. Début du fichier :\n{repr(content[:500])}")
           
-          # Construction du nouveau bloc de variable
-          new_block = "var apnsPrivateKey = `\n" + new_key + "\n`"
+          print(f"✅ Pattern trouvé : commence par '{match.group()[:60]}...'")
           
-          # Remplacement du bloc existant via regex multiligne
-          # Capture : "var apnsPrivateKey" + tout ce qu'il y a jusqu'au backtick fermant
-          pattern = r'var apnsPrivateKey\s*=\s*`[^`]*`'
-          
-          if not re.search(pattern, content, flags=re.DOTALL):
-              raise ValueError("Pattern 'apnsPrivateKey' introuvable dans le fichier. Vérifiez le fichier source.")
+          # On remplace en conservant le même mot-clé (const ou var) que l'original
+          keyword = match.group(1)  # "const" ou "var"
+          new_block = f"{keyword} apnsPrivateKey = `\n{new_key}\n`"
           
           new_content = re.sub(pattern, new_block, content, flags=re.DOTALL)
           
           with open(file_path, "w") as f:
               f.write(new_content)
           
-          print("✅ apnsPrivateKey remplacée avec succès.")
+          # Vérifications
+          count = new_content.count("apnsPrivateKey")
+          print(f"✅ Remplacement OK. Occurrences de 'apnsPrivateKey' : {count}")
           
-          # Vérification : s'assurer qu'il n'y a qu'une seule déclaration
-          count = new_content.count("var apnsPrivateKey")
           if count != 1:
-              raise ValueError(f"❌ Anomalie : {count} déclarations de apnsPrivateKey trouvées après patch !")
-          print(f"✅ Vérification OK : {count} seule déclaration présente.")
+              raise ValueError(f"❌ {count} déclarations trouvées, attendu 1 !")
+          
+          if new_key[:10] not in new_content:
+              raise ValueError("❌ La nouvelle clé ne semble pas présente dans le fichier patché !")
+          
+          print("✅ Toutes les vérifications sont passées.")
           PYEOF
 
       - name: Debug - Vérifier le fichier patché
