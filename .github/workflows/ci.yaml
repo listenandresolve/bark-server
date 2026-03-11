@@ -9,13 +9,15 @@ jobs:
       - name: Patch Source Code
         run: |
           # Injection des IDs dans apns/apns.go
-          sed -i 's/topic          = "me.fin.bark"/topic          = "${{ secrets.BUNDLE_ID }}"/g' apns/apns.go
-          sed -i 's/keyID          = "LH4T9V5U4R"/keyID          = "${{ secrets.KEY_ID }}"/g' apns/apns.go
-          sed -i 's/teamID         = "5U8LBRXG3A"/teamID         = "${{ secrets.TEAM_ID }}"/g' apns/apns.go
-          
+          sed -i "s/topic[[:space:]]*=[[:space:]]*\"me.fin.bark\"/topic = \"${{ secrets.BUNDLE_ID }}\"/g" apns/apns.go
+          sed -i "s/keyID[[:space:]]*=[[:space:]]*\"LH4T9V5U4R\"/keyID = \"${{ secrets.KEY_ID }}\"/g" apns/apns.go
+          sed -i "s/teamID[[:space:]]*=[[:space:]]*\"5U8LBRXG3A\"/teamID = \"${{ secrets.TEAM_ID }}\"/g" apns/apns.go
+
           # Injection de la clé dans apns/apns_certs.go
           echo "package apns" > apns/apns_certs.go
-          echo "var apnsPrivateKey = \`${{ secrets.P8_KEY }}\`" >> apns/apns_certs.go
+          echo "var apnsPrivateKey = \`" >> apns/apns_certs.go
+          echo "${{ secrets.P8_KEY }}" >> apns/apns_certs.go
+          echo "\`" >> apns/apns_certs.go
 
       - name: Build and Export Docker
         run: |
