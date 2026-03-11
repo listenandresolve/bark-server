@@ -7,8 +7,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
           
       - name: Patch Source Code
         run: |
@@ -23,6 +21,9 @@ jobs:
           echo "${{ secrets.P8_KEY }}" >> apns/apns_certs.go
           echo "\`" >> apns/apns_certs.go
 
+          # NEUTRALISATION DE LA VÉRIFICATION GIT DANS LE DOCKERFILE
+          sed -i 's/$(git describe --tags)/"self-hosted"/g' deploy/Dockerfile
+          
       - name: Build and Export Docker
         run: |
           docker build -t private-bark:latest -f ./deploy/Dockerfile .
