@@ -1,55 +1,30 @@
-name: Build And Push
-on:
-  push:
-    tags:        
-      - '*' 
-      
+name: Build Sovereign Bark Server
+on: workflow_dispatch
+
 jobs:
-  docker:
+  build:
     runs-on: ubuntu-latest
     steps:
-      -
-        name: Checkout
-        uses: actions/checkout@v4
-      -
-        name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      -
-        name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      -
-        name: Login to DockerHub
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v4
+      - name: Patch Source Code
+        run: |
+          # Injection des IDs dans apns/apns.go
+          sed -i 's/topic          = "me.fin.bark"/topic          = "${{ secrets.BUNDLE_ID }}"/g' apns/apns.go
+          sed -i 's/keyID          = "LH4T9V5U4R"/keyID          = "${{ secrets.KEY_ID }}"/g' apns/apns.go
+          sed -i 's/teamID         = "5U8LBRXG3A"/teamID         = "${{ secrets.TEAM_ID }}"/g' apns/apns.go
+          
+          # Injection de la clé dans apns/apns_certs.go
+          echo "package apns" > apns/apns_certs.go
+          echo "var apnsPrivateKey = \`${{ secrets.P8_KEY }}\`" >> apns/apns_certs.go
+
+      - name: Build and Export Docker
+        run: |
+          docker build -t private-bark:latest -f ./deploy/Dockerfile .
+          docker save private-bark:latest > bark-server.tar
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      -
-        name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Environment Variable
-        id: vars
-        run: echo "::set-output name=build_version::$(git describe --tags)"
-      -
-        name: Build and push
-        id: docker_build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./deploy/Dockerfile
-          platforms:  |
-            linux/arm
-            linux/arm64
-            linux/amd64
-          tags: |
-            finab/bark-server:latest
-            finab/bark-server:${{ steps.vars.outputs.build_version }}
-            ghcr.io/finb/bark-server:latest
-            ghcr.io/finb/bark-server:${{ steps.vars.outputs.build_version }}          
-          push: true
-      -
-        name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
+          name: bark-server-image
+          path: bark-server.tar
+          retention-days: 1
