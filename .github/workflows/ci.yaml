@@ -6,9 +6,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+        with:
+          fetch-depth: 0 # OBLIGATOIRE : télécharge tous les tags pour git describe
+          
       - name: Patch Source Code
         run: |
+          # 1. On autorise Docker à voir le dossier .git (en supprimant l'ignore)
+          rm -f .dockerignore
+          
           # Injection des IDs dans apns/apns.go
           sed -i "s/topic[[:space:]]*=[[:space:]]*\"me.fin.bark\"/topic = \"${{ secrets.BUNDLE_ID }}\"/g" apns/apns.go
           sed -i "s/keyID[[:space:]]*=[[:space:]]*\"LH4T9V5U4R\"/keyID = \"${{ secrets.KEY_ID }}\"/g" apns/apns.go
