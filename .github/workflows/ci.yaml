@@ -8,7 +8,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # On télécharge tout l'historique pour que ton numéro de build soit parfait
+          fetch-depth: 0
+
+      - name: Fetch Upstream Tags
+        run: |
+          # Cette ligne magique aspire les vrais numéros de version du créateur
+          git fetch --tags https://github.com/Finb/bark-server.git
 
       - name: Patch Source Code
         run: |
@@ -17,11 +22,8 @@ jobs:
           sed -i "s/keyID[[:space:]]*=[[:space:]]*\"LH4T9V5U4R\"/keyID = \"${{ secrets.KEY_ID }}\"/g" apns/apns.go
           sed -i "s/teamID[[:space:]]*=[[:space:]]*\"5U8LBRXG3A\"/teamID = \"${{ secrets.TEAM_ID }}\"/g" apns/apns.go
 
-          # 2. Remplacement chirurgical de la clé privée
-          # On supprime uniquement l'ancien bloc contenant la clé privée (sans toucher à apnsCAs)
+          # 2. Remplacement chirurgical de la clé privée (sans toucher aux certificats Apple)
           sed -i '/var apnsPrivateKey = `/,/`/d' apns/apns_certs.go
-          
-          # On ajoute ta vraie clé à la fin du fichier
           echo "var apnsPrivateKey = \`" >> apns/apns_certs.go
           echo "${{ secrets.P8_KEY }}" >> apns/apns_certs.go
           echo "\`" >> apns/apns_certs.go
