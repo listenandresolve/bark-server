@@ -16,19 +16,67 @@ jobs:
           git fetch --tags https://github.com/Finb/bark-server.git
 
       - name: Patch Source Code
+        env:
+          P8_KEY: ${{ secrets.P8_KEY }}
+          BUNDLE_ID: ${{ secrets.BUNDLE_ID }}
+          KEY_ID: ${{ secrets.KEY_ID }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
-          # 1. Injection des IDs
-          sed -i "s/topic[[:space:]]*=[[:space:]]*\"me.fin.bark\"/topic = \"${{ secrets.BUNDLE_ID }}\"/g" apns/apns.go
-          sed -i "s/keyID[[:space:]]*=[[:space:]]*\"LH4T9V5U4R\"/keyID = \"${{ secrets.KEY_ID }}\"/g" apns/apns.go
-          sed -i "s/teamID[[:space:]]*=[[:space:]]*\"5U8LBRXG3A\"/teamID = \"${{ secrets.TEAM_ID }}\"/g" apns/apns.go
-
-          # 2. Neutralisation de l'ancienne clé (On la renomme pour esquiver l'erreur de doublon)
-          sed -i 's/var apnsPrivateKey/var dummyPrivateKey/g' apns/apns_certs.go
+          # --- Injection des IDs dans apns/apns.go ---
+          sed -i "s/topic[[:space:]]*=[[:space:]]*\"me.fin.bark\"/topic = \"${BUNDLE_ID}\"/g" apns/apns.go
+          sed -i "s/keyID[[:space:]]*=[[:space:]]*\"LH4T9V5U4R\"/keyID = \"${KEY_ID}\"/g" apns/apns.go
+          sed -i "s/teamID[[:space:]]*=[[:space:]]*\"5U8LBRXG3A\"/teamID = \"${TEAM_ID}\"/g" apns/apns.go
+      
+          # --- Remplacement de apnsPrivateKey dans apns/apns_certs.go ---
+          python3 - <<'PYEOF'
+          import os
+          import re
           
-          # 3. Ajout de TA vraie clé (issue de GitHub Secrets)
-          echo "var apnsPrivateKey = \`" >> apns/apns_certs.go
-          echo "${{ secrets.P8_KEY }}" >> apns/apns_certs.go
-          echo "\`" >> apns/apns_certs.go
+          file_path = "apns/apns_certs.go"
+          
+          # Lecture du fichier original
+          with open(file_path, "r") as f:
+              content = f.read()
+          
+          # Récupération de la clé depuis la variable d'environnement
+          # La clé est attendue avec ses headers PEM inclus
+          new_key = os.environ["P8_KEY"]
+          
+          # Nettoyage : suppression des éventuels espaces/retours en trop en début et fin
+          new_key = new_key.strip()
+          
+          # Construction du nouveau bloc de variable
+          new_block = "var apnsPrivateKey = `\n" + new_key + "\n`"
+          
+          # Remplacement du bloc existant via regex multiligne
+          # Capture : "var apnsPrivateKey" + tout ce qu'il y a jusqu'au backtick fermant
+          pattern = r'var apnsPrivateKey\s*=\s*`[^`]*`'
+          
+          if not re.search(pattern, content, flags=re.DOTALL):
+              raise ValueError("Pattern 'apnsPrivateKey' introuvable dans le fichier. Vérifiez le fichier source.")
+          
+          new_content = re.sub(pattern, new_block, content, flags=re.DOTALL)
+          
+          with open(file_path, "w") as f:
+              f.write(new_content)
+          
+          print("✅ apnsPrivateKey remplacée avec succès.")
+          
+          # Vérification : s'assurer qu'il n'y a qu'une seule déclaration
+          count = new_content.count("var apnsPrivateKey")
+          if count != 1:
+              raise ValueError(f"❌ Anomalie : {count} déclarations de apnsPrivateKey trouvées après patch !")
+          print(f"✅ Vérification OK : {count} seule déclaration présente.")
+          PYEOF
+
+      - name: Debug - Vérifier le fichier patché
+        run: |
+          echo "=== 10 premières lignes du fichier ==="
+          head -10 apns/apns_certs.go
+          echo "=== Nombre de déclarations apnsPrivateKey ==="
+          grep -c "var apnsPrivateKey" apns/apns_certs.go
+          echo "=== Vérification syntaxe Go ==="
+          go vet ./apns/...
 
       - name: Build and Export Docker
         run: |
