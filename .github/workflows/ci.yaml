@@ -22,10 +22,10 @@ jobs:
           sed -i "s/keyID[[:space:]]*=[[:space:]]*\"LH4T9V5U4R\"/keyID = \"${{ secrets.KEY_ID }}\"/g" apns/apns.go
           sed -i "s/teamID[[:space:]]*=[[:space:]]*\"5U8LBRXG3A\"/teamID = \"${{ secrets.TEAM_ID }}\"/g" apns/apns.go
 
-          # 2. Suppression stricte de l'ancienne clé de Finb
-          sed -i '/var apnsPrivateKey/,/-----END PRIVATE KEY/d' apns/apns_certs.go
+          # 2. Neutralisation de l'ancienne clé (On la renomme pour esquiver l'erreur de doublon)
+          sed -i 's/var apnsPrivateKey/var dummyPrivateKey/g' apns/apns_certs.go
           
-          # 3. Ajout de TA clé (issue de GitHub Secrets)
+          # 3. Ajout de TA vraie clé (issue de GitHub Secrets)
           echo "var apnsPrivateKey = \`" >> apns/apns_certs.go
           echo "${{ secrets.P8_KEY }}" >> apns/apns_certs.go
           echo "\`" >> apns/apns_certs.go
