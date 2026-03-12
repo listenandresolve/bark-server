@@ -15,16 +15,6 @@ jobs:
           # Cette ligne magique aspire les vrais numéros de version du créateur
           git fetch --tags https://github.com/Finb/bark-server.git
 
-      - name: Debug - Inspecter apns_certs.go
-        run: |
-          echo "=== Contenu COMPLET du fichier ==="
-          cat -A apns/apns_certs.go | head -30
-          echo "..."
-          echo "=== Recherche de toutes les occurrences de 'Private' ==="
-          grep -n "Private\|apnsPriv\|apns_priv\|var apns" apns/apns_certs.go
-          echo "=== Nombre total de lignes ==="
-          wc -l apns/apns_certs.go
-
       - name: Patch Source Code
         env:
           P8_KEY: ${{ secrets.P8_KEY }}
@@ -79,15 +69,6 @@ jobs:
           
           print("✅ Toutes les vérifications sont passées.")
           PYEOF
-
-      - name: Debug - Vérifier le fichier patché
-        run: |
-          echo "=== 10 premières lignes du fichier ==="
-          head -10 apns/apns_certs.go
-          echo "=== Nombre de déclarations apnsPrivateKey ==="
-          grep -c "var apnsPrivateKey" apns/apns_certs.go
-          echo "=== Vérification syntaxe Go ==="
-          go vet ./apns/...
 
       - name: Build and Export Docker
         run: |
